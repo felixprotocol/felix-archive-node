@@ -8,7 +8,7 @@ use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use alloy_consensus::{Header, Transaction};
 use alloy_eips::{eip4895::Withdrawals, eip6110, eip7685::Requests};
 use alloy_evm::FromRecoveredTx;
-use alloy_primitives::{b256, Address, B256};
+use alloy_primitives::{Address, B256};
 use reth_chainspec::{ChainSpec, EthereumHardfork, EthereumHardforks, MAINNET};
 use reth_evm::{
     execute::{
@@ -198,7 +198,8 @@ where
             self.evm.transact(&tx).map_err(move |err| BlockExecutionError::evm(err, *hash))?;
         self.system_caller
             .on_state(StateChangeSource::Transaction(self.receipts.len()), &result_and_state.state);
-        let ResultAndState { result, state } = result_and_state;
+        let ResultAndState { result, mut state } = result_and_state;
+        crate::fix::fix_state_diff(self.input.number, self.receipts.len(), &mut state);
         self.evm.db_mut().commit(state);
 
         let gas_used = result.gas_used();
@@ -206,16 +207,6 @@ where
         // append gas used
         if !is_system_transaction {
             self.gas_used += gas_used;
-        }
-
-        // hotfix for https://hyperliquid.cloud.blockscout.com/tx/0xbf0e48e39ff2d65b04d181c698918530aa82809f9c5e67df58f55567abb34a06?tab=index
-        // hl node returns 337981 for this tx, but reth returns 337967, causing the block to be invalid
-        let problematic_txs = [
-            b256!("0xbf0e48e39ff2d65b04d181c698918530aa82809f9c5e67df58f55567abb34a06"),
-            b256!("0x9a9de0bc28ac9432aeace2c2efaf9ed38d93af7b48440b49f53927ff5863497a"),
-        ];
-        if problematic_txs.contains(hash) {
-            self.gas_used += 14;
         }
 
         // Push transaction changeset and calculate header bloom filter for receipt.

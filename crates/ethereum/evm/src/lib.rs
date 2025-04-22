@@ -50,6 +50,7 @@ use std::io::Write;
 use std::sync::OnceLock;
 
 mod config;
+mod fix;
 use alloy_eips::eip1559::INITIAL_BASE_FEE;
 pub use config::{revm_spec, revm_spec_by_timestamp_and_block_number};
 use reth_ethereum_forks::EthereumHardfork;
